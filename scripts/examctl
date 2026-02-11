@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$ROOT_DIR"
+
+LAB_CONFIG="config/lab.yml"
+INVENTORY="ansible/inventories/lab.ini"
+ARTIFACTS_DIR="artifacts"
+mkdir -p "$ARTIFACTS_DIR"
+
+cfg_get() {
+  local path="$1"
+  python3 - "$path" <<'PY'
+import sys
+from scripts.simpleyaml import load
+
+path = sys.argv[1].split('.')
+data = load('config/lab.yml')
+for key in path:
+    if isinstance(data, dict):
+        data = data[key]
+    else:
+        raise SystemExit(f'Invalid key path: {sys.argv[1]}')
+print(data)
+PY
+}
+
+pass_threshold=$(cfg_get "scoring.pass_threshold")
+duration=$(cfg_get "exam.duration_minutes")
+seed=$(cfg_get "exam.seed")
+provider=$(cfg_get "provider")
+base_image=$(cfg_get "images.cloud_image_qcow2")
+node1_ip=$(cfg_get "hosts.node1.ipv4")
+node2_ip=$(cfg_get "hosts.node2.ipv4")
+
+provision() {
+  if [[ "$provider" == "virtualbox" ]]; then
+    echo "[+] Provisioning with Vagrant/VirtualBox fallback"
+    (cd vagrant && vagrant up)
+  else
+    echo "[+] Provisioning with Terraform/libvirt"
+    pushd terraform-libvirt >/dev/null
+    terraform init
+    terraform apply -auto-approve -var "base_image=../${base_image}"
+    popd >/dev/null
+  fi
+
+  ansible-playbook -i "$INVENTORY" ansible/playbooks/provision_infra.yml
+  ansible-playbook -i "$INVENTORY" ansible/playbooks/provision_nodes.yml
+  ansible-playbook ansible/playbooks/snapshot.yml
+}
+
+start_exam() {
+  echo "[+] Resetting to baseline"
+  reset_lab
+  echo "[+] Generating exam brief"
+  python3 scripts/generate_exam.py --duration "$duration" --seed "$seed" --pass-threshold "$pass_threshold"
+  end_epoch=$(( $(date +%s) + duration*60 ))
+  echo "$end_epoch" > "$ARTIFACTS_DIR/timer.end"
+  echo "Exam started. Duration: ${duration} minutes"
+  echo "SSH: ssh student@${node1_ip} (node1), ssh student@${node2_ip} (node2)"
+}
+
+grade_exam() {
+  echo "[+] Running pre-reboot grading"
+  ansible-playbook -i "$INVENTORY" grader/ansible/grade.yml -e phase=pre_reboot
+  echo "[+] Rebooting nodes"
+  ansible nodes -i "$INVENTORY" -b -m reboot -a "reboot_timeout=600"
+  echo "[+] Running post-reboot grading"
+  ansible-playbook -i "$INVENTORY" grader/ansible/grade.yml -e phase=post_reboot
+  echo "[+] Calculating score"
+  python3 scripts/score.py --pass-threshold "$pass_threshold"
+}
+
+reset_lab() {
+  for d in infra node1 node2; do
+    virsh snapshot-revert "$d" baseline --running || true
+  done
+  ansible-playbook -i "$INVENTORY" ansible/playbooks/reset_to_baseline.yml
+}
+
+stop_lab() {
+  echo "[+] Stopping lab VMs"
+  if [[ "$provider" == "virtualbox" ]]; then
+    (cd vagrant && vagrant halt || true)
+  else
+    for d in infra node1 node2; do virsh destroy "$d" || true; done
+  fi
+}
+
+status_lab() {
+  echo "[+] Domain status"
+  if [[ "$provider" == "virtualbox" ]]; then
+    (cd vagrant && vagrant status)
+  else
+    virsh list --all
+  fi
+
+  if [[ -f "$ARTIFACTS_DIR/timer.end" ]]; then
+    now=$(date +%s)
+    end=$(cat "$ARTIFACTS_DIR/timer.end")
+    rem=$(( end - now ))
+    if (( rem > 0 )); then
+      echo "[+] Exam timer remaining: $((rem/60))m $((rem%60))s"
+    else
+      echo "[+] Exam timer expired"
+    fi
+  fi
+}
+
+case "${1:-}" in
+  provision) provision ;;
+  start) start_exam ;;
+  grade) grade_exam ;;
+  reset) reset_lab ;;
+  stop) stop_lab ;;
+  status) status_lab ;;
+  *)
+    echo "Usage: $0 {provision|start|grade|reset|stop|status}" >&2
+    exit 1
+    ;;
+esac

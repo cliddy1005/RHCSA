@@ -1,0 +1,21 @@
+- name: Install chrony
+  package:
+    name: chrony
+    state: present
+
+- name: Configure chrony for lab clients
+  copy:
+    dest: /etc/chrony.conf
+    content: |
+      pool 2.pool.ntp.org iburst
+      allow 192.168.50.0/24
+      allow fd00:50::/64
+      local stratum 10
+      driftfile /var/lib/chrony/drift
+      makestep 1.0 3
+
+- name: Enable chronyd
+  service:
+    name: chronyd
+    enabled: true
+    state: restarted

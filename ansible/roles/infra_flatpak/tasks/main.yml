@@ -1,0 +1,21 @@
+- name: Install flatpak tooling
+  package:
+    name:
+      - flatpak
+      - ostree
+    state: present
+
+- name: Create internal flatpak repo directory
+  file:
+    path: /var/www/html/flatpak/repo
+    state: directory
+    mode: '0755'
+
+- name: Initialize flatpak repo
+  command: ostree --repo=/var/www/html/flatpak/repo init --mode=archive-z2
+  args:
+    creates: /var/www/html/flatpak/repo/config
+
+- name: Placeholder for adding runtime/app refs
+  debug:
+    msg: "TODO: add at least one internal runtime/app ref to /var/www/html/flatpak/repo"
