@@ -1,0 +1,33 @@
+- name: Install repo hosting packages
+  package:
+    name:
+      - httpd
+      - createrepo_c
+    state: present
+
+- name: Create local repo directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /var/www/html/repo/BaseOS
+    - /var/www/html/repo/AppStream
+
+- name: Optional ISO mount reminder
+  debug:
+    msg: "TODO: Mount user-provided RHEL ISO and sync RPMs into /var/www/html/repo/*"
+
+- name: Create repository metadata
+  command: "createrepo_c {{ item }}"
+  loop:
+    - /var/www/html/repo/BaseOS
+    - /var/www/html/repo/AppStream
+  changed_when: true
+  failed_when: false
+
+- name: Enable and start httpd
+  service:
+    name: httpd
+    enabled: true
+    state: started

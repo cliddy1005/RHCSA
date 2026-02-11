@@ -1,0 +1,32 @@
+- name: Install NFS server
+  package:
+    name: nfs-utils
+    state: present
+
+- name: Create export paths
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /exports/data, mode: '0755' }
+    - { path: /exports/homes, mode: '0775' }
+
+- name: Configure exports
+  copy:
+    dest: /etc/exports.d/rhcsa.exports
+    content: |
+      /exports/data 192.168.50.0/24(ro,sync,root_squash)
+      /exports/homes 192.168.50.0/24(rw,sync,root_squash)
+
+- name: Enable NFS server
+  service:
+    name: nfs-server
+    enabled: true
+    state: started
+
+- name: Exportfs reload
+  command: exportfs -rav
+  changed_when: true

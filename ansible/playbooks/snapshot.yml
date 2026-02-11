@@ -1,0 +1,14 @@
+- name: Manage libvirt snapshots for baseline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    snapshot_name: baseline
+    domains: ["infra", "node1", "node2"]
+  tasks:
+    - name: Create or replace baseline snapshot
+      command: >-
+        virsh snapshot-create-as --domain {{ item }} {{ snapshot_name }}
+        --description "rhcsa baseline" --atomic --disk-only --quiesce
+      loop: "{{ domains }}"
+      changed_when: true

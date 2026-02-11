@@ -1,0 +1,25 @@
+# Secrets and local overrides
+config/secrets.yml
+*.tfvars
+.terraform/
+terraform.tfstate*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Artifacts
+artifacts/*
+!artifacts/.gitkeep
+
+# Vagrant/Virtualization
+.vagrant/
+*.box
+
+# Editor/OS
+.DS_Store
+*.swp
+
+# Generated exam instance
+tasks/exams/current_exam.md

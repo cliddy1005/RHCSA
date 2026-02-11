@@ -1,0 +1,12 @@
+- command: id analyst1
+  delegate_to: node1
+  register: u1
+  failed_when: false
+  changed_when: false
+- command: id analyst2
+  delegate_to: node1
+  register: u2
+  failed_when: false
+  changed_when: false
+- set_fact:
+    grade_results: "{{ grade_results + [ task_meta | combine({'check':'check_t03_users','passed': (u1.rc == 0 and u2.rc == 0 and 'appops' in u1.stdout and 'appops' in u2.stdout)}) ] }}"

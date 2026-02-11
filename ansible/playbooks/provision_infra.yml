@@ -1,0 +1,8 @@
+- name: Provision infra services
+  hosts: infra
+  become: true
+  roles:
+    - infra_repo
+    - infra_flatpak
+    - infra_nfs
+    - infra_chrony

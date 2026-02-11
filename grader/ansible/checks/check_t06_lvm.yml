@@ -1,0 +1,7 @@
+- shell: "lvs vgexam/lvlogs && findmnt -n /logs"
+  delegate_to: node2
+  register: out
+  failed_when: false
+  changed_when: false
+- set_fact:
+    grade_results: "{{ grade_results + [ task_meta | combine({'check':'check_t06_lvm','passed': out.rc == 0}) ] }}"

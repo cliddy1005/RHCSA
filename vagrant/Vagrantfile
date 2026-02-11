@@ -1,0 +1,20 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/rhel9" # TODO: replace with suitable RHEL 10-compatible base box
+
+  nodes = {
+    "infra" => "192.168.50.10",
+    "node1" => "192.168.50.11",
+    "node2" => "192.168.50.12"
+  }
+
+  nodes.each do |name, ip|
+    config.vm.define name do |node|
+      node.vm.hostname = "#{name}.lab.example"
+      node.vm.network "private_network", ip: ip
+      node.vm.provider "virtualbox" do |vb|
+        vb.memory = 4096
+        vb.cpus = 2
+      end
+    end
+  end
+end
