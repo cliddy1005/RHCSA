@@ -1,0 +1,135 @@
+- id: T01
+  title: Configure static hostname and /etc/hosts entry
+  objective_domain: Deploy, configure, and maintain systems
+  points: 20
+  estimated_minutes: 10
+  difficulty: 1
+  instructions: |
+    On node1, set the persistent hostname to node1.lab.example and ensure local name resolution for infra.lab.example.
+  grader: [check_t01_hostname.yml]
+- id: T02
+  title: Configure internal DNF repositories
+  objective_domain: Deploy, configure, and maintain systems
+  points: 20
+  estimated_minutes: 12
+  difficulty: 2
+  instructions: |
+    Configure BaseOS and AppStream repository files to consume infra HTTP repositories.
+  grader: [check_t02_repo.yml]
+- id: T03
+  title: Create users and groups
+  objective_domain: Manage users and groups
+  points: 20
+  estimated_minutes: 12
+  difficulty: 1
+  instructions: |
+    Create group appops and users analyst1 and analyst2 with appops as supplemental group.
+  grader: [check_t03_users.yml]
+- id: T04
+  title: Configure sudo access
+  objective_domain: Manage users and groups
+  points: 20
+  estimated_minutes: 10
+  difficulty: 2
+  instructions: |
+    Allow members of appops to run systemctl restart httpd via sudo without password.
+  grader: [check_t04_sudo.yml]
+- id: T05
+  title: Partition and format extra disk
+  objective_domain: Configure local storage
+  points: 20
+  estimated_minutes: 15
+  difficulty: 3
+  instructions: |
+    On node1 create GPT partition on /dev/vdb, format XFS, mount persistently at /data1.
+  grader: [check_t05_partition.yml]
+- id: T06
+  title: Create LVM volume and mount
+  objective_domain: Configure local storage
+  points: 20
+  estimated_minutes: 18
+  difficulty: 3
+  instructions: |
+    On node2 create VG vgexam on /dev/vdb and LV lvlogs 1G, XFS mounted at /logs.
+  grader: [check_t06_lvm.yml]
+- id: T07
+  title: Configure NFS client mount
+  objective_domain: Create and configure file systems
+  points: 20
+  estimated_minutes: 15
+  difficulty: 3
+  instructions: |
+    Mount infra:/exports/data at /mnt/data on node1 with persistent fstab entry.
+  grader: [check_t07_nfs.yml]
+- id: T08
+  title: ACL configuration
+  objective_domain: Create and configure file systems
+  points: 20
+  estimated_minutes: 10
+  difficulty: 2
+  instructions: |
+    Configure ACL so analyst1 has rwx on /srv/seed/archive.
+  grader: [check_t08_acl.yml]
+- id: T09
+  title: Restore correct SELinux context
+  objective_domain: Manage security
+  points: 20
+  estimated_minutes: 10
+  difficulty: 2
+  instructions: |
+    Fix SELinux labels so /srv/www/html/badlabel can be served by httpd context.
+  grader: [check_t09_selinux.yml]
+- id: T10
+  title: Configure chrony client
+  objective_domain: Operate running systems
+  points: 20
+  estimated_minutes: 10
+  difficulty: 2
+  instructions: |
+    Configure node2 chrony to sync against infra.lab.example.
+  grader: [check_t10_chrony.yml]
+- id: T11
+  title: Create and enable systemd timer
+  objective_domain: Operate running systems
+  points: 20
+  estimated_minutes: 15
+  difficulty: 4
+  instructions: |
+    Create a timer and service to archive /srv/seed/logs daily into /srv/seed/archive.
+  grader: [check_t11_timer.yml]
+- id: T12
+  title: Configure SSH key-based access
+  objective_domain: Manage security
+  points: 20
+  estimated_minutes: 10
+  difficulty: 2
+  instructions: |
+    Install provided public key for analyst1 and disable password auth for analyst1 only.
+  grader: [check_t12_ssh.yml]
+- id: T13
+  title: Firewall service access
+  objective_domain: Deploy, configure, and maintain systems
+  points: 20
+  estimated_minutes: 12
+  difficulty: 3
+  instructions: |
+    On node1 allow only SSH and NFS client related traffic as needed.
+  grader: [check_t13_firewall.yml]
+- id: T14
+  title: Archive and compress matching logs
+  objective_domain: Understand and use essential tools
+  points: 20
+  estimated_minutes: 10
+  difficulty: 2
+  instructions: |
+    Create /tmp/error-logs.tar.gz containing files in /srv/seed/logs with 'ERROR'.
+  grader: [check_t14_archive.yml]
+- id: T15
+  title: Create autofs map for home shares
+  objective_domain: Create and configure file systems
+  points: 20
+  estimated_minutes: 19
+  difficulty: 4
+  instructions: |
+    Configure autofs on node2 to mount infra:/exports/homes under /homeauto/<user>.
+  grader: [check_t15_autofs.yml]

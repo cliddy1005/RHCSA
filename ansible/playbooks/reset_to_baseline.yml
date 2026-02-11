@@ -1,0 +1,12 @@
+- name: Reset nodes to baseline state
+  hosts: nodes
+  become: true
+  tasks:
+    - name: Remove exam user artifacts
+      file:
+        path: /home/student/exam-work
+        state: absent
+
+    - name: Re-seed baseline data
+      include_role:
+        name: node_seeddata

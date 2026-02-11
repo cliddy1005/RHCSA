@@ -1,0 +1,7 @@
+- shell: "ls -Zd /srv/www/html/badlabel | grep httpd_sys_content_t"
+  delegate_to: node1
+  register: out
+  failed_when: false
+  changed_when: false
+- set_fact:
+    grade_results: "{{ grade_results + [ task_meta | combine({'check':'check_t09_selinux','passed': out.rc == 0}) ] }}"

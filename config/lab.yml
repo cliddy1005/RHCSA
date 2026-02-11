@@ -1,0 +1,47 @@
+lab_name: rhcsa-ex200-simulator
+domain: lab.example
+provider: libvirt # libvirt|virtualbox
+network:
+  bridge_name: virbr-rhcsa
+  ipv4_cidr: 192.168.50.0/24
+  ipv6_cidr: fd00:50::/64
+  gateway4: 192.168.50.1
+  gateway6: fd00:50::1
+  internet_blocked: true
+hosts:
+  infra:
+    hostname: infra.lab.example
+    ipv4: 192.168.50.10
+    ipv6: fd00:50::10
+    vcpu: 2
+    ram_mb: 4096
+    disk_gb: 40
+  node1:
+    hostname: node1.lab.example
+    ipv4: 192.168.50.11
+    ipv6: fd00:50::11
+    vcpu: 2
+    ram_mb: 4096
+    disk_gb: 40
+    extra_disks_gb: [8, 8]
+  node2:
+    hostname: node2.lab.example
+    ipv4: 192.168.50.12
+    ipv6: fd00:50::12
+    vcpu: 2
+    ram_mb: 4096
+    disk_gb: 40
+    extra_disks_gb: [8, 8]
+images:
+  # TODO: set one of the following
+  cloud_image_qcow2: images/rhel10-cloud.qcow2
+  installer_iso: images/rhel-10.0-x86_64-dvd.iso
+paths:
+  artifacts_dir: artifacts
+  exam_file: tasks/exams/current_exam.md
+scoring:
+  pass_threshold: 210
+  max_points: 300
+exam:
+  duration_minutes: 180
+  seed: 42

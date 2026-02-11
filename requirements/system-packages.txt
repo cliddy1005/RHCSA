@@ -1,0 +1,9 @@
+# Host-level dependencies (install via your OS package manager)
+terraform
+libvirt
+qemu-kvm
+virt-install
+ansible-core
+jq
+vagrant
+virtualbox

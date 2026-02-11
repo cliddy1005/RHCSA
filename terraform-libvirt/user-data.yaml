@@ -1,0 +1,11 @@
+#cloud-config
+users:
+  - default
+  - name: student
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+ssh_pwauth: true
+chpasswd:
+  list: |
+    student:student
+  expire: false
