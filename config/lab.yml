@@ -1,5 +1,6 @@
 lab_name: rhcsa-ex200-simulator
 domain: lab.example
+provider: virtualbox # libvirt|virtualbox (macOS: use virtualbox)
 provider: libvirt # libvirt|virtualbox
 network:
   bridge_name: virbr-rhcsa

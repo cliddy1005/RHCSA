@@ -1,0 +1,15 @@
+# Host-level dependencies by platform
+# Linux (install via distro package manager)
+terraform
+libvirt
+qemu-kvm
+virt-install
+ansible-core
+jq
+vagrant
+virtualbox
+
+# macOS notes
+# - libvirt/qemu-kvm/virt-install are Linux/KVM specific and not used on macOS.
+# - On macOS, use provider=virtualbox in config/lab.yml.
+# - Install equivalents via Homebrew (see requirements/README.md).

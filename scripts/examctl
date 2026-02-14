@@ -34,6 +34,13 @@ base_image=$(cfg_get "images.cloud_image_qcow2")
 node1_ip=$(cfg_get "hosts.node1.ipv4")
 node2_ip=$(cfg_get "hosts.node2.ipv4")
 
+os_name=$(uname -s)
+if [[ "$os_name" == "Darwin" && "$provider" == "libvirt" ]]; then
+  echo "[!] macOS detected: libvirt/KVM is not supported in this workflow."
+  echo "[!] Set provider=virtualbox in config/lab.yml and retry." >&2
+  exit 1
+fi
+
 provision() {
   if [[ "$provider" == "virtualbox" ]]; then
     echo "[+] Provisioning with Vagrant/VirtualBox fallback"
@@ -74,6 +81,14 @@ grade_exam() {
 }
 
 reset_lab() {
+  if [[ "$provider" == "virtualbox" ]]; then
+    echo "[+] Reset for VirtualBox provider: reprovisioning Vagrant VMs"
+    (cd vagrant && vagrant destroy -f && vagrant up)
+  else
+    for d in infra node1 node2; do
+      virsh snapshot-revert "$d" baseline --running || true
+    done
+  fi
   for d in infra node1 node2; do
     virsh snapshot-revert "$d" baseline --running || true
   done

@@ -1,6 +1,7 @@
 # Usage
 
 ## 1) Prepare prerequisites
+- Install dependency lists from `requirements/` first (see `requirements/README.md`).
 - Linux host with KVM/libvirt, `terraform`, `ansible`, `python3`, and `jq`.
 - No external Python YAML dependency required by shipped scripts.
 - Optional fallback: VirtualBox + Vagrant.
@@ -27,6 +28,16 @@
 
 ## 6) Reset
 - `./scripts/examctl reset`
+- On `provider: virtualbox`, reset reprovisions Vagrant VMs (`destroy -f && up`) to recreate baseline.
+
+## 7) Cleanup
+- `./scripts/examctl stop`
+
+
+## macOS-specific notes
+- Use `provider: virtualbox` in `config/lab.yml`.
+- Do not use libvirt/KVM paths on macOS; they are Linux-specific.
+- Install tools using Homebrew as shown in `requirements/README.md`.
 
 ## 7) Cleanup
 - `./scripts/examctl stop`

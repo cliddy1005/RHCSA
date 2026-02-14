@@ -20,6 +20,15 @@ A local, exam-like RHCSA EX200 practice environment generator for RHEL 10-style 
 - Optional fallback: `vagrant`, `virtualbox`.
 - User-provided RHEL 10 assets (licensed): cloud-init qcow2 image preferred, or installer ISO.
 
+## Quick dependency install
+- Python deps: `python3 -m pip install -r requirements/python.txt`
+- Host deps: see `requirements/system-packages.txt` and distro examples in `requirements/README.md`.
+
+## macOS quick start
+1. Install dependencies from `requirements/README.md` (Homebrew section).
+2. Set `provider: virtualbox` in `config/lab.yml`.
+3. Run `./scripts/examctl provision`.
+
 ## Configure lab
 1. Edit `config/lab.yml` (CPU/RAM/disk/IPs/domain/image paths).
 2. Copy `config/secrets.sample.yml` -> `config/secrets.yml` (gitignored) for local secrets if needed.
