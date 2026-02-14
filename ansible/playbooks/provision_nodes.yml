@@ -1,0 +1,6 @@
+- name: Seed and harden nodes
+  hosts: nodes
+  become: true
+  roles:
+    - node_seeddata
+    - node_hardening_examstyle

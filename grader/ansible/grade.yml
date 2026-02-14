@@ -1,0 +1,29 @@
+- name: Execute grading checks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    phase: "pre_reboot"
+    artifacts_file: "artifacts/{{ phase }}.json"
+  tasks:
+    - name: Load task definitions
+      include_vars:
+        file: tasks/taskbank.yml
+        name: taskbank
+
+    - name: Initialize grade results
+      set_fact:
+        grade_results: []
+
+    - name: Run each task check list
+      include_tasks: "checks/{{ item.1 }}"
+      loop: "{{ taskbank | subelements('grader') }}"
+      loop_control:
+        label: "{{ item.0.id }} -> {{ item.1 }}"
+      vars:
+        task_meta: "{{ item.0 }}"
+
+    - name: Write phase results
+      copy:
+        dest: "{{ artifacts_file }}"
+        content: "{{ {'phase': phase, 'results': grade_results} | to_nice_json }}"

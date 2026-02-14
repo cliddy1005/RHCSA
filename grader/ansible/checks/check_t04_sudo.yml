@@ -1,0 +1,7 @@
+- shell: "grep -R '^%appops .*systemctl restart httpd' /etc/sudoers /etc/sudoers.d 2>/dev/null | wc -l"
+  delegate_to: node1
+  register: out
+  failed_when: false
+  changed_when: false
+- set_fact:
+    grade_results: "{{ grade_results + [ task_meta | combine({'check':'check_t04_sudo','passed': (out.stdout | int) >= 1}) ] }}"

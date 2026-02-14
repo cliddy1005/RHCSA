@@ -1,0 +1,41 @@
+- name: Create seed directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /srv/seed
+    - /srv/seed/logs
+    - /srv/seed/archive
+    - /srv/www/html
+
+- name: Seed data files
+  copy:
+    dest: "/srv/seed/logs/{{ item.name }}"
+    content: "{{ item.content }}\n"
+    mode: '0644'
+  loop:
+    - { name: app.log, content: "ERROR disk threshold reached" }
+    - { name: auth.log, content: "INFO login accepted" }
+    - { name: db.log, content: "WARN replication lag" }
+
+- name: Create a deliberately broken repo config
+  copy:
+    dest: /etc/yum.repos.d/broken.repo
+    content: |
+      [broken]
+      name=Broken Repo
+      baseurl=http://192.168.50.10/repo/Nope
+      enabled=1
+      gpgcheck=0
+
+- name: Create deliberate SELinux mislabel target
+  file:
+    path: /srv/www/html/badlabel
+    state: directory
+    mode: '0755'
+
+- name: Intentionally set wrong SELinux context
+  command: chcon -t var_t /srv/www/html/badlabel
+  changed_when: true
+  failed_when: false

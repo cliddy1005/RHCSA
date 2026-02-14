@@ -1,0 +1,7 @@
+- shell: "tar -tzf /tmp/error-logs.tar.gz | grep -E 'app.log|ERROR'"
+  delegate_to: node1
+  register: out
+  failed_when: false
+  changed_when: false
+- set_fact:
+    grade_results: "{{ grade_results + [ task_meta | combine({'check':'check_t14_archive','passed': out.rc == 0}) ] }}"

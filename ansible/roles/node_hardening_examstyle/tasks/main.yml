@@ -1,0 +1,29 @@
+- name: Set /etc/hosts lab entries
+  blockinfile:
+    path: /etc/hosts
+    block: |
+      192.168.50.10 infra.lab.example infra
+      192.168.50.11 node1.lab.example node1
+      192.168.50.12 node2.lab.example node2
+
+- name: Set resolv.conf to infra resolver placeholder
+  copy:
+    dest: /etc/resolv.conf
+    content: |
+      search lab.example
+      nameserver 192.168.50.10
+
+- name: Block outbound internet egress (IPv4)
+  command: firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 0 -d 0.0.0.0/0 -j DROP
+  changed_when: true
+  failed_when: false
+
+- name: Allow internal subnet egress (IPv4)
+  command: firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 0 -d 192.168.50.0/24 -j ACCEPT
+  changed_when: true
+  failed_when: false
+
+- name: Reload firewall
+  command: firewall-cmd --reload
+  changed_when: true
+  failed_when: false
