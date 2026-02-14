@@ -38,3 +38,6 @@
 - Use `provider: virtualbox` in `config/lab.yml`.
 - Do not use libvirt/KVM paths on macOS; they are Linux-specific.
 - Install tools using Homebrew as shown in `requirements/README.md`.
+
+## 7) Cleanup
+- `./scripts/examctl stop`

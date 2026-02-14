@@ -89,6 +89,9 @@ reset_lab() {
       virsh snapshot-revert "$d" baseline --running || true
     done
   fi
+  for d in infra node1 node2; do
+    virsh snapshot-revert "$d" baseline --running || true
+  done
   ansible-playbook -i "$INVENTORY" ansible/playbooks/reset_to_baseline.yml
 }
 
