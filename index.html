@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RHCSA">
+<meta name="theme-color" content="#0d0f14">
+<title>RHCSA Prep</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body,#root{height:100%;background:#0d0f14}
+  body{overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{display:none}
+</style>
+</head>
+<body><div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback}=React;
+
+// ── TOPIC METADATA ──────────────────────────────────────────────
+const TOPICS = [
+  {id:"tools",    label:"Essential Tools",      icon:"⚙️",  weight:22, order:1, color:"#38bdf8"},
+  {id:"files",    label:"Files & Permissions",  icon:"📁",  weight:18, order:2, color:"#a78bfa"},
+  {id:"selinux",  label:"SELinux",               icon:"🔒",  weight:12, order:3, color:"#f97316"},
+  {id:"storage",  label:"Storage & LVM",         icon:"💾",  weight:15, order:4, color:"#10b981"},
+  {id:"networking",label:"Networking",           icon:"🌐",  weight:11, order:5, color:"#06b6d4"},
+  {id:"firewall", label:"firewalld",             icon:"🛡️",  weight:8,  order:6, color:"#ef4444"},
+  {id:"services", label:"Services & Boot",       icon:"🚀",  weight:10, order:7, color:"#eab308"},
+  {id:"users",    label:"Users & Groups",        icon:"👤",  weight:10, order:8, color:"#ec4899"},
+  {id:"containers",label:"Containers (Podman)",  icon:"📦",  weight:8,  order:9, color:"#8b5cf6"},
+  {id:"scripting",label:"Shell Scripting",       icon:"📜",  weight:9,  order:10,color:"#14b8a6"},
+];
+
+// ── LEARN CONTENT ────────────────────────────────────────────────
+const LEARN = {
+  tools:{
+    title:"Essential Tools",
+    summary:"Before any sysadmin task, you need to navigate, search, and manipulate files confidently. These tools are your daily toolkit on any Linux system.",
+    concepts:[
+      {name:"grep — Search Inside Files",
+       explain:"grep scans file content line-by-line looking for a pattern. Think of it like Ctrl+F for the terminal, but much more powerful.",
+       diagram:`grep [options] 'pattern' /path/to/file
+       
+  -r  → recurse into subdirectories
+  -i  → ignore case (Error = error = ERROR)
+  -n  → show line numbers
+  -l  → only show filenames, not lines
+  
+  Example:
+  grep -ri 'failed' /var/log/
+         ↑  ↑           ↑
+       recurse  case    where to look`,
+       tip:"On the exam, grep -r is your best friend for finding config values across many files."},
+      {name:"find — Search For Files",
+       explain:"find locates files by attributes — name, owner, size, modification time. Unlike grep it searches file metadata, not content.",
+       diagram:`find /start/path [criteria] [action]
+
+  -name '*.conf'  → by filename pattern
+  -user apache    → files owned by user
+  -mtime -7       → modified < 7 days ago
+  -type f         → regular files only
+  -type d         → directories only
+  
+  Example:
+  find /etc -name '*.conf' -mtime -30`,
+       tip:"-mtime -7 means LESS than 7 days ago. Think of the minus as 'within'."},
+      {name:"Redirection & Pipes",
+       explain:"Every command has three streams: stdin (input), stdout (normal output), stderr (errors). You can redirect these to files or chain commands together.",
+       diagram:`  STDIN (0) ──→ [ command ] ──→ STDOUT (1)
+                                    └──────→ STDERR (2)
+  
+  >  file     redirect stdout (overwrite)
+  >> file     redirect stdout (append)
+  2> file     redirect stderr only
+  &> file     redirect BOTH stdout+stderr
+  
+  command1 | command2   pipe stdout→stdin
+  
+  Example:
+  grep error /var/log/messages 2>/dev/null | wc -l`,
+       tip:"2>/dev/null silences error messages — very useful on the exam to keep output clean."},
+    ]
+  },
+  files:{
+    title:"Files & Permissions",
+    summary:"Linux controls access to everything via ownership and permission bits. Every file has an owner (user), a group, and three permission sets.",
+    concepts:[
+      {name:"Permission Bits Explained",
+       explain:"Each file has 9 permission bits: 3 for the owner, 3 for the group, 3 for everyone else. Each set is read(r), write(w), execute(x).",
+       diagram:`  -  r w x  r - x  r - -
+  ↑  ↑↑↑↑  ↑↑↑↑  ↑↑↑↑
+  │  owner  group  others
+  │
+  file type (- = file, d = dir, l = link)
+  
+  r = 4,  w = 2,  x = 1
+  
+  rwx = 4+2+1 = 7
+  r-x = 4+0+1 = 5
+  r-- = 4+0+0 = 4
+  --- = 0+0+0 = 0
+  
+  chmod 750 file  →  rwx r-x ---`,
+       tip:"To calculate: just add up r=4, w=2, x=1 for each of the three groups."},
+      {name:"Special Bits: Sticky, SUID, SGID",
+       explain:"Three extra bits add special behaviours beyond basic rwx permissions.",
+       diagram:`  STICKY BIT (+t on directory)
+  → Users can only delete their OWN files
+  → Used on /tmp — anyone can write but
+    not delete each other's files
+  → chmod 1777 /tmp  (the 1 = sticky)
+
+  SETUID (+s on executable)  
+  → Runs as the file OWNER not caller
+  → passwd uses this to write /etc/shadow
+  → chmod 4755 /usr/bin/passwd
+
+  SETGID (+s on directory)
+  → New files inherit the DIRECTORY's group
+  → Great for shared project folders
+  → chmod 2775 /shared/project`,
+       tip:"Sticky bit on /tmp is a classic exam question. Remember: you can write but can't delete others' files."},
+      {name:"umask — Default Permissions",
+       explain:"umask subtracts from the maximum permissions when new files are created. It's a mask, not the actual permissions.",
+       diagram:`  Max for files: 666 (rw-rw-rw-)
+  Max for dirs:  777 (rwxrwxrwx)
+  
+  umask 022 means subtract 022:
+  
+  666 - 022 = 644  (files get rw-r--r--)
+  777 - 022 = 755  (dirs get rwxr-xr-x)
+  
+  umask 027:
+  666 - 027 = 640  (rw-r-----)
+  777 - 027 = 750  (rwxr-x---)
+  
+  View current: umask
+  Set it:       umask 027`,
+       tip:"umask 022 is the default on RHEL. umask 027 is more secure for shared systems."},
+    ]
+  },
+  selinux:{
+    title:"SELinux",
+    summary:"SELinux adds a second layer of access control on top of Unix permissions. Even if file permissions allow access, SELinux can still deny it.",
+    concepts:[
+      {name:"How SELinux Works",
+       explain:"Every process and file has a security context (label). SELinux policy defines which process types can access which file types. Mismatched labels = denied.",
+       diagram:`  PROCESS                    FILE
+  system_u:system_r:         system_u:object_r:
+  httpd_t:s0                 httpd_sys_content_t:s0
+       ↑                              ↑
+   process type               file type
+  
+  SELinux Policy says:
+  ✓ httpd_t  CAN access  httpd_sys_content_t
+  ✗ httpd_t  CANNOT access  user_home_t
+  
+  So even if chmod 777, httpd still can't
+  read files labelled user_home_t!`,
+       tip:"The type field (3rd part of context) is what matters most. httpd_t is the web server process type."},
+      {name:"Fixing SELinux Denials",
+       explain:"When SELinux blocks something, the fix is usually relabelling the file correctly — not disabling SELinux.",
+       diagram:`  WRONG approach: setenforce 0  ← disables SELinux!
+  
+  RIGHT approach:
+  
+  1. Check what's wrong:
+     ls -Z /var/www/html/myfile.html
+     → user_home_t  ← WRONG label!
+  
+  2. Fix the label:
+     restorecon -v /var/www/html/myfile.html
+     → now labelled httpd_sys_content_t ✓
+  
+  3. Or set it permanently:
+     semanage fcontext -a -t httpd_sys_content_t '/mypath(/.*)?'
+     restorecon -Rv /mypath`,
+       tip:"restorecon is the go-to fix. If restorecon doesn't help, use semanage fcontext to set the correct default label first."},
+      {name:"SELinux Booleans",
+       explain:"Booleans are named on/off switches in SELinux policy — they let you toggle common behaviours without writing custom policy.",
+       diagram:`  Think of booleans as feature flags for SELinux.
+  
+  View all booleans:
+  getsebool -a
+  
+  View specific:
+  getsebool httpd_can_network_connect
+  
+  Turn on (temporarily — lost on reboot):
+  setsebool httpd_can_network_connect on
+  
+  Turn on PERMANENTLY (-P flag):
+  setsebool -P httpd_can_network_connect on
+                ↑
+           Always use -P for exam tasks!`,
+       tip:"Always use -P with setsebool on the exam. Without it the change disappears on reboot — you'll lose marks."},
+    ]
+  },
+  storage:{
+    title:"Storage & LVM",
+    summary:"LVM (Logical Volume Manager) sits between physical disks and filesystems, making storage flexible and resizable without repartitioning.",
+    concepts:[
+      {name:"The LVM Stack",
+       explain:"LVM has three layers. Physical disks at the bottom, a pooled Volume Group in the middle, and flexible Logical Volumes at the top that get formatted and mounted.",
+       diagram:`  ┌─────────────────────────────────────┐
+  │         FILESYSTEM (xfs, ext4)      │ ← what you mount
+  ├─────────────────────────────────────┤
+  │      LOGICAL VOLUME (lv_data)       │ ← resize freely
+  ├──────────────────┬──────────────────┤
+  │                  │                  │
+  │  VOLUME GROUP (vg0) ← storage pool  │
+  ├──────────────────┼──────────────────┤
+  │  PHYSICAL VOL    │  PHYSICAL VOL    │ ← real disks
+  │  /dev/sdb        │  /dev/sdc        │
+  └──────────────────┴──────────────────┘
+  
+  Commands match the layers:
+  pvcreate → vgcreate → lvcreate`,
+       tip:"Build bottom-up: PV first, then VG, then LV. Extend the same way: vgextend, then lvextend."},
+      {name:"Extending an LV",
+       explain:"One of the most common exam tasks: add space to a logical volume and grow the filesystem without losing data.",
+       diagram:`  Current state: lv_data is 5G, needs 8G
+  
+  Step 1: Check VG has free space
+  vgs  →  VFree column must have ≥3G
+  
+  Step 2: Extend the LV by 3G
+  lvextend -L +3G /dev/vg0/lv_data
+  
+  Step 3: Grow the filesystem
+  
+  For XFS (RHEL default):
+  xfs_growfs /mountpoint
+  
+  For ext4:
+  resize2fs /dev/vg0/lv_data
+  
+  ⚠️ XFS: use mountpoint not device
+  ⚠️ ext4: use device not mountpoint`,
+       tip:"XFS cannot shrink — only grow. Always extend LV first, then filesystem. Never the other way."},
+      {name:"Persistent Mounts with fstab",
+       explain:"/etc/fstab is read at boot. If it's wrong, the system may not boot. Every line mounts one filesystem.",
+       diagram:`  /etc/fstab format:
+  
+  DEVICE          MOUNTPOINT  FSTYPE  OPTIONS   DUMP PASS
+  /dev/vg0/lv_data  /data      xfs    defaults   0    2
+  UUID=abc123...    /boot      xfs    defaults   0    1
+  /dev/sdb1         swap       swap   defaults   0    0
+  
+  OPTIONS:
+  defaults  = rw,suid,exec,auto,nouser,async
+  nofail    = don't halt boot if missing ← exam tip!
+  ro        = read only
+  noexec    = can't execute binaries
+  
+  Test without rebooting:
+  mount -a  ← mounts everything in fstab`,
+       tip:"Always use 'nofail' for non-critical mounts. Test with mount -a before rebooting — a bad fstab can break your system."},
+    ]
+  },
+  networking:{
+    title:"Networking",
+    summary:"RHEL 9 uses NetworkManager to manage all network configuration. The command-line tool is nmcli.",
+    concepts:[
+      {name:"NetworkManager & nmcli",
+       explain:"NetworkManager stores network config as 'connections'. Each connection has settings like IP, gateway, DNS. nmcli is the CLI tool to manage them.",
+       diagram:`  NetworkManager Architecture:
+  
+  nmcli ──→ NetworkManager ──→ Network Interface
+  (you)      (the manager)      (eth0, ens3...)
+  
+  Key nmcli commands:
+  
+  nmcli con show              list connections
+  nmcli con show "enp0s3"     show details
+  nmcli dev status            show devices
+  
+  Set static IP:
+  nmcli con mod "enp0s3" \\
+    ipv4.addresses 192.168.1.10/24 \\
+    ipv4.gateway   192.168.1.1 \\
+    ipv4.dns       8.8.8.8 \\
+    ipv4.method    manual
+  
+  Apply: nmcli con up "enp0s3"`,
+       tip:"Connection name (in quotes) is not the same as the interface name. Use nmcli con show to find the right name."},
+      {name:"Viewing Network State",
+       explain:"Several tools let you inspect what's happening on the network right now.",
+       diagram:`  IP addresses on all interfaces:
+  ip addr show          (or: ip a)
+  
+  Routing table:
+  ip route show         (or: ip r)
+  
+  Listening services & ports:
+  ss -tlnp
+  ↑  ↑↑↑↑
+  │  │││└─ show Process name
+  │  ││└── No DNS lookup (show numbers)
+  │  │└─── Listening only
+  │  └──── TCP only
+  └─────── socket statistics
+  
+  Test connectivity:
+  ping -c 4 8.8.8.8      (4 packets only)
+  traceroute 8.8.8.8
+  curl -I https://redhat.com`,
+       tip:"ss -tlnp is the modern replacement for netstat. Remember it: TCP, Listening, No-dns, Process."},
+    ]
+  },
+  firewall:{
+    title:"firewalld",
+    summary:"firewalld organises rules into zones. Each network interface is assigned to a zone, and each zone has its own set of allowed services and ports.",
+    concepts:[
+      {name:"Zones & How They Work",
+       explain:"A zone is a named trust level. Most RHEL systems use the 'public' zone by default. You add rules to zones, and interfaces are assigned to zones.",
+       diagram:`  firewalld Zone Model:
+  
+  Interface (eth0) → assigned to → Zone (public)
+                                        │
+                            ┌───────────┼───────────┐
+                            ▼           ▼           ▼
+                         services     ports      rich rules
+                         (http,ssh)  (8080/tcp)  (complex)
+  
+  Default zones (by trust level):
+  drop      → silently drop all inbound
+  block     → reject all inbound  
+  public    → default, untrusted network ← you are here
+  work      → trusted colleagues
+  home      → trusted home devices
+  trusted   → allow all traffic`,
+       tip:"You almost always work in the public zone. Always check which zone your interface is in with: firewall-cmd --get-active-zones"},
+      {name:"Runtime vs Permanent",
+       explain:"firewalld has two layers of config. Runtime is what's active right now. Permanent is what's on disk and survives reboots. You need BOTH to make lasting changes.",
+       diagram:`  ┌─────────────────────────────────────────┐
+  │  WITHOUT --permanent (runtime only)     │
+  │  firewall-cmd --add-port=8080/tcp       │
+  │  ✓ works NOW                            │
+  │  ✗ GONE after reboot or reload          │
+  └─────────────────────────────────────────┘
+  
+  ┌─────────────────────────────────────────┐
+  │  WITH --permanent (saved to disk)       │
+  │  firewall-cmd --add-port=8080/tcp       │
+  │               --permanent              │
+  │  ✓ saved to disk                        │
+  │  ✗ NOT active yet — need reload!        │
+  └─────────────────────────────────────────┘
+  
+  CORRECT approach for exam:
+  firewall-cmd --add-port=8080/tcp --permanent
+  firewall-cmd --reload`,
+       tip:"Two commands every time: --permanent to save, --reload to activate. Or combine: --permanent then --reload."},
+    ]
+  },
+  services:{
+    title:"Services & Boot",
+    summary:"systemd manages everything that starts on boot. It replaces init, manages services, mounts, timers, and defines the boot sequence.",
+    concepts:[
+      {name:"systemctl Essentials",
+       explain:"systemctl is your main tool for controlling services. Every background program (httpd, sshd, firewalld) is a systemd unit.",
+       diagram:`  SERVICE LIFECYCLE:
+  
+  systemctl start   httpd   ← start NOW
+  systemctl stop    httpd   ← stop NOW
+  systemctl restart httpd   ← stop + start
+  systemctl reload  httpd   ← reload config (no stop)
+  
+  BOOT BEHAVIOUR:
+  systemctl enable  httpd   ← start at boot
+  systemctl disable httpd   ← don't start at boot
+  
+  ONE-LINER (start now + enable at boot):
+  systemctl enable --now httpd  ← use this!
+  
+  STATUS:
+  systemctl status  httpd   ← is it running?
+  systemctl is-active httpd ← just active/inactive
+  systemctl --failed        ← see broken services`,
+       tip:"enable --now is the exam-efficient one-liner. It both enables at boot AND starts immediately."},
+      {name:"systemd Targets (Runlevels)",
+       explain:"Targets replace old SysV runlevels. They define what gets started and in what order during boot.",
+       diagram:`  OLD RUNLEVEL → SYSTEMD TARGET
+  
+  0  →  poweroff.target      (shutdown)
+  1  →  rescue.target        (single user)
+  3  →  multi-user.target    (CLI, no GUI)
+  5  →  graphical.target     (GUI desktop)
+  6  →  reboot.target        (reboot)
+  
+  View current target:
+  systemctl get-default
+  
+  Change default (e.g. remove GUI):
+  systemctl set-default multi-user.target
+  
+  Emergency boot fix (at GRUB, press e):
+  Add to linux line:
+  systemd.unit=rescue.target`,
+       tip:"RHEL servers usually run multi-user.target (no GUI). If asked to boot to a specific target, use systemctl set-default."},
+      {name:"journalctl — Reading Logs",
+       explain:"systemd captures all service output in the journal. journalctl is how you read it.",
+       diagram:`  journalctl                  all logs ever
+  journalctl -b               since last boot
+  journalctl -b -1            previous boot
+  
+  journalctl -u httpd         logs for httpd unit
+  journalctl -u httpd -n 50   last 50 lines
+  journalctl -u httpd -f      follow live
+  
+  journalctl --since "1 hour ago"
+  journalctl --since "2024-01-15 10:00"
+  
+  journalctl -p err           errors only
+  journalctl -p warning       warnings+above
+  
+  Priorities: debug info notice warning
+              err crit alert emerg`,
+       tip:"-u for unit, -f to follow, -p err for errors only. Combine them: journalctl -u httpd -p err -f"},
+    ]
+  },
+  users:{
+    title:"Users & Groups",
+    summary:"Every process runs as a user, every file is owned by a user and group. Managing users and their permissions is core sysadmin work.",
+    concepts:[
+      {name:"User Files Explained",
+       explain:"User information is spread across a few key files. Understanding their structure helps you manage users confidently.",
+       diagram:`  /etc/passwd  — user account info (world-readable)
+  username:x:UID:GID:comment:home:shell
+  ciaran  :x:1001:1001::/home/ciaran:/bin/bash
+                ↑                         ↑
+           user id                    login shell
+  
+  /etc/shadow  — password hashes (root only)
+  username:$hash:lastchange:min:max:warn:inactive:expire
+  ciaran:$6$abc...:19800:0:90:7:::
+                               ↑  ↑
+                           max days warn days
+  
+  /etc/group  — group membership
+  groupname:x:GID:member1,member2
+  developers:x:1500:ciaran,dave`,
+       tip:"You'll rarely edit these files directly. Use useradd, usermod, groupadd commands instead — they validate input and update all files correctly."},
+      {name:"useradd & usermod",
+       explain:"useradd creates users, usermod modifies existing ones. Know the key flags for both.",
+       diagram:`  CREATE a user:
+  useradd -u 1500 -g developers \\
+          -G wheel,docker \\
+          -m -s /bin/bash \\
+          -c "Ciaran Developer" ciaran
+       ↑      ↑        ↑    ↑        ↑
+     UID  primary   extra  create  comment
+           group   groups  home
+  
+  MODIFY existing user:
+  usermod -aG docker ciaran   ← add to group
+          ↑
+        MUST use -a (append) or you'll REPLACE
+        all group memberships!
+  
+  usermod -s /bin/zsh ciaran  ← change shell
+  usermod -L ciaran           ← lock account
+  usermod -U ciaran           ← unlock account`,
+       tip:"The -a in usermod -aG is critical. Without -a, -G REPLACES all secondary groups. This is a classic mistake."},
+      {name:"Password Policies with chage",
+       explain:"chage controls password aging — how long passwords last, when they expire, and warning periods.",
+       diagram:`  chage -l username        ← list current policy
+  
+  chage -M 90  username   ← max 90 days
+        ↑
+        Maximum days before password expires
+  
+  chage -m 7   username   ← min 7 days
+        ↑
+        Must wait 7 days before changing again
+  
+  chage -W 14  username   ← warn 14 days before expiry
+  
+  chage -E 2025-12-31 username  ← account expires date
+  
+  chage -d 0   username   ← force change at next login
+        ↑
+        Sets last-change to epoch (day 0)`,
+       tip:"chage -d 0 forces a password change at next login — useful after creating accounts or security incidents."},
+    ]
+  },
+  containers:{
+    title:"Containers (Podman)",
+    summary:"Podman runs containers without a daemon or root privileges. On RHEL 9 it replaces Docker. The commands are mostly identical to Docker.",
+    concepts:[
+      {name:"Container Basics",
+       explain:"A container is a lightweight isolated process. It uses the host kernel but has its own filesystem, network, and process space. Podman manages this without a background daemon.",
+       diagram:`  HOST SYSTEM
+  ┌─────────────────────────────────────┐
+  │  Linux Kernel                       │
+  ├──────────┬──────────┬───────────────┤
+  │ Container│ Container│  Normal       │
+  │ nginx    │ postgres │  Processes    │
+  │          │          │               │
+  │ /var/www │ /var/lib │               │
+  │ (image   │ (image   │               │
+  │  layer)  │  layer)  │               │
+  └──────────┴──────────┴───────────────┘
+  
+  Image  = read-only template (like a class)
+  Container = running instance (like an object)
+  
+  podman images    ← list local images
+  podman ps -a     ← list all containers`,
+       tip:"Podman is rootless by default — containers run as your user, not root. This is more secure than Docker's default."},
+      {name:"Key Podman Commands",
+       explain:"Most Docker commands work unchanged with podman. Focus on run, exec, inspect, and volume mounts.",
+       diagram:`  RUN a container:
+  podman run -d \\           ← detached (background)
+    --name webserver \\      ← give it a name
+    -p 8080:80 \\            ← host:container port
+    -v /data:/app/data:Z \\ ← mount (Z=SELinux fix)
+    nginx                   ← image name
+  
+  INTERACT with running container:
+  podman exec -it webserver /bin/bash
+  
+  VIEW what's happening:
+  podman logs webserver     ← stdout/stderr
+  podman logs -f webserver  ← follow live
+  podman inspect webserver  ← full JSON details
+  podman top webserver      ← processes inside
+  
+  CLEAN UP:
+  podman stop webserver
+  podman rm   webserver`,
+       tip:"The :Z on volume mounts is RHEL-specific — it relabels the directory for SELinux. Without it, SELinux may block access."},
+      {name:"Systemd Integration",
+       explain:"For containers that must start automatically at boot, generate a systemd unit file from your running container.",
+       diagram:`  1. Start your container first (manually):
+  podman run -d --name myapp nginx
+  
+  2. Generate systemd unit file:
+  podman generate systemd \\
+    --name myapp \\
+    --files \\       ← write to file (not stdout)
+    --new           ← recreate container on start
+  
+  3. This creates: container-myapp.service
+  
+  4. For ROOT service (starts for all users):
+  cp container-myapp.service /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now container-myapp
+  
+  5. For USER service (rootless, your user only):
+  mkdir -p ~/.config/systemd/user/
+  mv container-myapp.service ~/.config/systemd/user/
+  systemctl --user enable --now container-myapp`,
+       tip:"loginctl enable-linger username lets user services start even when that user isn't logged in — needed for rootless containers at boot."},
+    ]
+  },
+  scripting:{
+    title:"Shell Scripting",
+    summary:"Shell scripts automate repetitive tasks. On the RHCSA exam you may need to write short scripts that use conditionals, loops, and process arguments.",
+    concepts:[
+      {name:"Script Structure",
+       explain:"Every bash script follows the same skeleton. The shebang tells the kernel which interpreter to use.",
+       diagram:`  #!/bin/bash
+  # This is a comment
+  # Description: what this script does
+  
+  set -e   ← exit on any error (good practice)
+  
+  # Variables (no spaces around =)
+  NAME="ciaran"
+  COUNT=5
+  
+  # Special variables
+  $0  ← script name
+  $1  ← first argument
+  $2  ← second argument
+  $#  ← number of arguments
+  $@  ← all arguments
+  $?  ← exit code of last command
+  $$  ← PID of this script
+  
+  echo "Hello $NAME, you passed $# args"`,
+       tip:"#!/bin/bash not #!/bin/sh — on RHEL /bin/sh might not be bash. Always be explicit."},
+      {name:"Conditionals & Tests",
+       explain:"if statements test conditions using [ ] (test command) or [[ ]] (bash built-in, more features). Know the common test flags.",
+       diagram:`  if [ condition ]; then
+    commands
+  elif [ other ]; then
+    commands
+  else
+    commands
+  fi
+  
+  FILE TESTS:
+  -f file   regular file exists
+  -d file   directory exists
+  -e file   anything exists (file/dir/link)
+  -r file   readable
+  -w file   writeable
+  -s file   exists and not empty
+  
+  STRING TESTS:
+  -z "$var"    empty string
+  -n "$var"    non-empty string
+  "$a" = "$b"  strings equal
+  
+  NUMBER TESTS:
+  $a -eq $b   equal
+  $a -gt $b   greater than
+  $a -lt $b   less than`,
+       tip:"Always quote variables in tests: [ -f \"$FILE\" ] not [ -f $FILE ] — unquoted variables with spaces break the test."},
+      {name:"Loops",
+       explain:"Two main loops: for (iterate a list) and while (loop while condition is true). Both are common exam tasks.",
+       diagram:`  FOR loop — iterate a list:
+  for user in alice bob charlie; do
+    echo "Creating $user"
+    useradd "$user"
+  done
+  
+  FOR loop — iterate files:
+  for file in /etc/*.conf; do
+    echo "Config: $file"
+  done
+  
+  WHILE loop — read file line by line:
+  while IFS= read -r line; do
+    echo "Line: $line"
+  done < /etc/hosts
+  
+  WHILE loop — countdown:
+  count=5
+  while [ $count -gt 0 ]; do
+    echo "$count"
+    ((count--))
+  done`,
+       tip:"while IFS= read -r line is the correct way to read files. IFS= preserves leading spaces, -r prevents backslash escaping."},
+    ]
+  }
+};
+
+// ── QUESTIONS ────────────────────────────────────────────────────
+const QUESTIONS = [
+  {id:1,cat:"tools",q:"Which command searches case-insensitively for 'error' in all files under /var/log?",options:["find /var/log -name error","grep -ri 'error' /var/log/","locate -i error /var/log","awk -i '/error/' /var/log/*"],answer:1,explain:"grep -r recurses into subdirectories. -i makes the search case-insensitive. This combination covers all files under /var/log including subdirs.",wrong:["find locates files by name/attribute, not file content — it can't search inside files","locate searches a filename database, not file contents","awk works but needs a file argument per file — doesn't recurse automatically"]},
+  {id:2,cat:"tools",q:"What does 'find /home -user ciaran -mtime -7' find?",options:["Files owned by ciaran, modified MORE than 7 days ago","Files owned by ciaran, modified WITHIN the last 7 days","Directories owned by ciaran created this week","Files accessed by ciaran in the last 7 days"],answer:1,explain:"-mtime -7 means 'modification time less than 7 days ago' — the minus means within/less than. +7 would mean more than 7 days ago.",wrong:["+7 means more than 7 days ago. -7 is the opposite — within the last 7 days","find uses -mtime for modification time, not creation time. -ctime is for status change","find uses -atime for access time, not -mtime"]},
+  {id:3,cat:"tools",q:"How do you redirect both stdout AND stderr to a file, overwriting it?",options:["command > file 2> file","command &> file","command | tee file","command >> file 2>&1"],answer:1,explain:"&> file is shorthand for redirecting both stdout (1) and stderr (2) to the same file. It overwrites the file.",wrong:["Redirecting both to the same file separately can cause issues — they'll fight over the file","| tee only captures stdout, not stderr. You'd need |& tee for both",">> appends rather than overwrites, and 2>&1 must come AFTER > to work correctly"]},
+  {id:4,cat:"tools",q:"What does 'man -k partition' do?",options:["Opens the man page for the partition command","Searches man page summaries for the word 'partition'","Lists all commands containing 'partition' in their name","Shows the fdisk man page"],answer:1,explain:"man -k is equivalent to 'apropos' — it searches the NAME and DESCRIPTION of all man pages. Useful when you don't know the exact command name.",wrong:["There's no command called 'partition'. man -k searches for a keyword, not a command","man -k searches summaries not just command names — grep would be needed for name-only search","fdisk is one result but man -k shows ALL man pages matching the keyword"]},
+  {id:5,cat:"tools",q:"You run a command and want to see ONLY error messages, discarding normal output. Which redirection do you use?",options:["command 2>/dev/null","command 1>/dev/null","command &>/dev/null","command >/dev/stderr"],answer:1,explain:"1>/dev/null discards stdout (normal output). Errors go to stderr (fd 2) which still prints to terminal. This lets you see only errors.",wrong:["2>/dev/null discards stderr (errors) — the opposite of what's wanted, you'd see only normal output","&>/dev/null discards EVERYTHING — both stdout and stderr. Nothing would appear","/dev/stderr is a valid destination but > goes to stdout by default — this doesn't do what's intended"]},
+  {id:6,cat:"files",q:"What numeric chmod gives owner full access, group read+execute, others nothing?",options:["754","750","640","755"],answer:1,explain:"Owner: rwx=7, Group: r-x=5 (read+execute, no write), Others: ---=0. Together: 750.",wrong:["754 gives others r-- (read only) — the question says 'others nothing'","640 gives group rw- but no execute, and owner rw- not rwx","755 gives others r-x (read+execute) — not 'nothing'"]},
+  {id:7,cat:"files",q:"What does the sticky bit on /tmp ensure?",options:["/tmp files survive reboots","Users can only delete their OWN files in /tmp","Only root can write to /tmp","Files in /tmp are executable by everyone"],answer:1,explain:"The sticky bit (chmod +t or mode 1xxx) on a directory means: you can write new files, but you can only DELETE files you own. Others' files are protected.",wrong:["Files in /tmp are typically cleared on reboot — sticky bit doesn't change this","Without sticky bit, anyone with write permission on the directory could delete any file — sticky bit restricts this","/tmp is world-writable (1777) — the sticky bit restricts deletion, not writing"]},
+  {id:8,cat:"files",q:"You run 'usermod -G docker ciaran'. What's the risk?",options:["ciaran gets added to the docker group","ciaran's password gets reset","ciaran's secondary groups are REPLACED with just docker","The command fails — you need sudo"],answer:2,explain:"-G without -a REPLACES all secondary group memberships. ciaran would lose wheel, developers, and any other groups — only docker remains. Always use -aG together.",wrong:["Without -a, -G replaces rather than appends. ciaran would LOSE all other groups","usermod -G only affects group membership, not passwords","usermod requires root but the question is about the effect, not privilege"]},
+  {id:9,cat:"files",q:"A new file is created with permissions 640. What is the system's umask?",options:["umask 026","umask 027","umask 022","umask 640"],answer:1,explain:"Max file permissions are 666. 666 - 027 = 640 (rw-r-----). So umask must be 027.",wrong:["umask 026 would give 640 for files but let's check: 666-026=640 ✓ — actually both 026 and 027 give 640 for files, but 027 is more standard","umask 022 gives 644 (rw-r--r--), not 640","umask 640 doesn't make sense — umask values subtract from 666/777 and shouldn't have high bits set"]},
+  {id:10,cat:"selinux",q:"A web server gets 'Permission denied' even though 'ls -l' shows the file is world-readable. What should you check first?",options:["Run chmod 777 on the file","Check the SELinux context with ls -Z","Restart httpd","Check /etc/hosts.deny"],answer:1,explain:"When Unix permissions look correct but access is still denied, SELinux context mismatch is the most likely cause. ls -Z shows the security context labels.",wrong:["chmod 777 is dangerous and won't fix an SELinux issue — it makes the file world-writable unnecessarily","Restarting httpd won't change file permissions or SELinux context","hosts.deny is for TCP wrappers — not relevant to file permission denied errors"]},
+  {id:11,cat:"selinux",q:"Which command permanently makes an SELinux boolean change survive reboots?",options:["setenforce 1","setsebool httpd_can_network_connect on","setsebool -P httpd_can_network_connect on","semanage boolean --enable httpd_can_network_connect"],answer:2,explain:"setsebool -P writes the boolean change to the policy store on disk. Without -P the change is only in memory and resets on reboot.",wrong:["setenforce controls enforcing/permissive mode, not individual booleans","setsebool without -P changes only the running state — lost on reboot","semanage boolean doesn't use --enable syntax — setsebool -P is the correct tool"]},
+  {id:12,cat:"selinux",q:"You copy a file from /home/user to /var/www/html. httpd can't read it. Why?",options:["File ownership changed during copy","The file inherited the wrong SELinux label (user_home_t instead of httpd_sys_content_t)","The file permissions changed to 000","httpd needs a restart after new files are added"],answer:1,explain:"When you copy a file, it gets the SELinux context of the DESTINATION directory's default context — but only if using cp. If the destination policy isn't set correctly, the file keeps the source label. Use restorecon to fix.",wrong:["cp preserves ownership unless you use --preserve. But this doesn't explain httpd access denial if permissions are ok","cp doesn't change file permissions by default","Adding files to /var/www/html never requires an httpd restart for reading"]},
+  {id:13,cat:"storage",q:"What is the correct order to extend a logical volume and its XFS filesystem?",options:["xfs_growfs first, then lvextend","lvextend first, then xfs_growfs","resize2fs first, then lvextend","Just run lvextend — it extends the filesystem automatically"],answer:1,explain:"You must extend the logical volume first (to allocate more space), then tell the filesystem about the new space with xfs_growfs. The filesystem can't expand into space that doesn't exist yet.",wrong:["xfs_growfs looks at the block device to determine available space — if LV isn't extended first, it sees no new space","resize2fs is for ext4/ext2 filesystems. XFS uses xfs_growfs. Using the wrong tool won't work","lvextend only resizes the block device — the filesystem metadata still thinks it's the old size until you run xfs_growfs"]},
+  {id:14,cat:"storage",q:"What does 'nofail' in /etc/fstab do?",options:["Prevents the filesystem from being unmounted","Tells the system to skip this mount if the device is missing at boot","Makes the mount read-only if writes fail","Disables fsck for this filesystem"],answer:1,explain:"nofail tells systemd: if this device/filesystem isn't available at boot, continue booting anyway instead of dropping to emergency mode. Essential for non-critical or removable storage.",wrong:["nofail has no effect on unmounting — that's handled by umount or the shutdown process","nofail skips the mount entirely if the device is missing — it doesn't change to read-only","noauto prevents auto-mount. nofail allows boot to proceed if the mount fails"]},
+  {id:15,cat:"storage",q:"Which command adds an existing physical volume /dev/sdc to volume group vg0?",options:["lvcreate -n vg0 /dev/sdc","vgcreate vg0 /dev/sdc","vgextend vg0 /dev/sdc","pvextend vg0 /dev/sdc"],answer:2,explain:"vgextend adds a PV to an existing VG, increasing its total capacity. /dev/sdc must already be initialised with pvcreate first.",wrong:["lvcreate creates a logical volume inside a VG — it doesn't add disks to a VG","vgcreate creates a NEW volume group — vg0 already exists, so this would fail","pvextend is not a valid LVM command — you extend VGs and LVs, not PVs"]},
+  {id:16,cat:"networking",q:"How do you permanently set a static IP on connection 'enp0s3' using NetworkManager?",options:["Edit /etc/sysconfig/network-scripts/ifcfg-enp0s3","nmcli con mod 'enp0s3' ipv4.addresses 10.0.0.10/24 ipv4.method manual then nmcli con up 'enp0s3'","ip addr add 10.0.0.10/24 dev enp0s3","Edit /etc/network/interfaces"],answer:1,explain:"nmcli con mod modifies a NetworkManager connection profile. ipv4.method manual means static (not DHCP). nmcli con up applies the changes. This persists across reboots.",wrong:["On RHEL 9 with NetworkManager, ifcfg files still work but nmcli is the preferred method. ifcfg files are being deprecated","ip addr add is temporary — lost on reboot and doesn't integrate with NetworkManager","/etc/network/interfaces is a Debian/Ubuntu file — doesn't exist on RHEL"]},
+  {id:17,cat:"networking",q:"What does 'ss -tlnp' show?",options:["All active TCP connections","TCP ports that are LISTENING, with process names, no DNS resolution","UDP ports in use","All network socket statistics"],answer:1,explain:"ss flags: -t = TCP only, -l = listening sockets only, -n = numeric (no DNS), -p = show process. Together: which TCP ports are waiting for connections and which program owns each one.",wrong:["Active connections (ESTABLISHED state) aren't shown with -l. Remove -l to see active connections","ss -u would show UDP. -t specifies TCP only","ss without flags shows all socket types in all states — the flags narrow it down significantly"]},
+  {id:18,cat:"firewall",q:"You run 'firewall-cmd --add-service=http --permanent'. What else must you do to activate it?",options:["Nothing — --permanent activates it immediately","systemctl restart firewalld","firewall-cmd --reload","Reboot the server"],answer:2,explain:"--permanent saves to disk but doesn't change the running configuration. --reload re-reads the permanent config and activates it without dropping existing connections.",wrong:["--permanent only writes to disk — without --reload the running firewall doesn't know about the change yet","systemctl restart firewalld would work but it's heavy-handed and drops all connections momentarily. --reload is the right tool","A reboot would activate permanent rules but it's unnecessary — use --reload"]},
+  {id:19,cat:"firewall",q:"Which command shows all current firewalld rules for the active zone?",options:["iptables -L","firewall-cmd --list-all","systemctl status firewalld","firewall-cmd --info-zone=public"],answer:1,explain:"firewall-cmd --list-all displays the active zone's name, interfaces, services, ports, protocols, and rich rules all in one output.",wrong:["iptables -L shows the underlying iptables rules but firewalld abstracts these — use firewalld commands for firewalld management","systemctl status shows if firewalld is running and recent log entries, not the actual rules","--info-zone=public works but --list-all uses the currently active zone automatically"]},
+  {id:20,cat:"services",q:"What is the most efficient way to enable httpd at boot AND start it right now?",options:["systemctl enable httpd && systemctl start httpd","systemctl enable --now httpd","service httpd enable --boot && service httpd start","systemctl start httpd (this enables it too)"],answer:1,explain:"systemctl enable --now combines enable (at boot) and start (right now) into one command. It's the standard efficient approach.",wrong:["This works but is two commands when one will do","service is a legacy wrapper for systemctl — still works but --now flag isn't available","systemctl start only starts for the current session — it does NOT enable at boot"]},
+  {id:21,cat:"services",q:"A service is failing. Which command shows the most useful diagnostic output?",options:["cat /var/log/messages","systemctl status httpd","journalctl","ps aux | grep httpd"],answer:1,explain:"systemctl status shows: active/failed state, enabled/disabled, recent log lines, the main PID, and exit codes — all the key info to diagnose a failed service in one view.",wrong:["Messages log is useful but you'd have to grep for the service and scroll — systemctl status is faster and more focused","journalctl alone shows all logs — you'd need journalctl -u httpd to filter, and even then status is the first check","ps shows running processes — a failed service won't appear in ps output at all"]},
+  {id:22,cat:"users",q:"You create user 'dave' and want to force a password change on first login. Which command achieves this?",options:["passwd --expire dave","chage -d 0 dave","usermod --force-password dave","chage -M 0 dave"],answer:1,explain:"chage -d 0 sets the last password change date to day 0 (Jan 1 1970), making the password immediately expired. Linux forces a change at next login.",wrong:["passwd --expire is not a valid flag — the correct flags are -l (lock) and -u (unlock)","usermod --force-password is not a valid flag","chage -M 0 sets maximum days to 0, meaning the password expires immediately after being set but the behavior is different from -d 0"]},
+  {id:23,cat:"users",q:"Which file would you check to see if a user account is locked?",options:["/etc/passwd","/etc/shadow","/etc/security/locked","~/.account_status"],answer:1,explain:"/etc/shadow stores password hashes. A locked account has ! prepended to the hash (e.g. !$6$abc...). You can also check with passwd --status username.",wrong:["/etc/passwd stores username, UID, GID, home, shell — not password or lock status","/etc/security/locked does not exist on standard RHEL","User account status isn't stored in home directories"]},
+  {id:24,cat:"containers",q:"You mount a directory into a Podman container and SELinux blocks the container from reading it. What's the fix?",options:["setenforce 0","Add :Z to the volume mount flag","chmod 777 the directory","Run the container as root"],answer:1,explain:"Adding :Z to the -v flag tells Podman to relabel the mount point with the correct SELinux context for container access. -v /data:/app:Z is the standard fix on RHEL.",wrong:["setenforce 0 disables SELinux entirely — never do this on a production system or exam","chmod 777 changes Unix permissions but doesn't fix the SELinux context label","Running as root still requires correct SELinux context — the Z flag is the right fix regardless of user"]},
+  {id:25,cat:"containers",q:"What is the difference between a container image and a container?",options:["They are the same thing","Image is a read-only template; container is a running instance of an image","Container is the template; image is what runs","Image is on disk; container is in memory only"],answer:1,explain:"An image is like a class definition — static, read-only, reusable. A container is like an object — a running instance created from an image, with its own writable layer and process state.",wrong:["Image and container are fundamentally different concepts — image is static template, container is live instance","It's the opposite — the image is the static template, the container is what runs","Both images and containers exist on disk. Containers have a writable layer plus running processes"]},
+  {id:26,cat:"scripting",q:"What is wrong with this script line: if [ $filename = 'report.txt' ]; then",options:["Single quotes should be double quotes","$filename should be quoted: \"$filename\"","= should be == for string comparison","The semicolon after ] is wrong"],answer:1,explain:"If $filename contains spaces or is empty, the unquoted variable breaks the [ ] test. [ $filename = 'report.txt' ] with filename='my report' becomes [ my report = report.txt ] which is a syntax error.",wrong:["Single quotes work fine for literal string comparison in [ ] tests","Both = and == work for string comparison in [ ] — single = is actually POSIX standard","The semicolon before then is required syntax in bash — it separates the test from the then keyword"]},
+  {id:27,cat:"scripting",q:"Which loop correctly reads a file line by line, preserving leading whitespace?",options:["for line in $(cat /etc/hosts)","while read line; do echo $line; done < /etc/hosts","while IFS= read -r line; do echo \"$line\"; done < /etc/hosts","cat /etc/hosts | for line in $@"],answer:2,explain:"IFS= prevents word splitting (preserving spaces). -r prevents backslash interpretation. Redirecting from file is efficient. This is the canonical bash idiom for processing files line by line.",wrong:["$(cat file) word-splits on spaces AND newlines — each word becomes a separate loop iteration, not each line","while read without IFS= strips leading/trailing whitespace. Without -r, backslashes are interpreted","You can't pipe directly into a for loop this way. The $@ syntax is for positional parameters, not stdin"]},
+  {id:28,cat:"scripting",q:"A script has 'set -e' at the top. What happens if a command inside the script returns exit code 1?",options:["The script prints an error and continues","The script exits immediately at that point","The script prompts the user to continue","Exit code 1 is ignored — only fatal errors stop the script"],answer:1,explain:"set -e (errexit) causes the script to exit immediately when any command returns a non-zero exit code. This prevents scripts from silently continuing after failures.",wrong:["Without set -e, scripts continue by default. With it, any non-zero exit causes immediate termination","set -e doesn't prompt — it silently exits with the failing command's exit code","set -e treats ANY non-zero exit code as fatal — there's no distinction between 'mild' and 'fatal' errors without additional configuration"]},
+];
+
+// ── STORAGE ──────────────────────────────────────────────────────
+const STORAGE_KEY = "rhcsa_v2_progress";
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveProgress(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+
+// progress shape: { topicId: { attempts: N, correct: N, lastSeen: timestamp, masteredIds: [] } }
+
+// ── HELPERS ──────────────────────────────────────────────────────
+function topicScore(progress, topicId) {
+  const p = progress[topicId];
+  if (!p || p.attempts === 0) return null;
+  return Math.round((p.correct / p.attempts) * 100);
+}
+
+function topicReadiness(progress, topicId) {
+  const qs = QUESTIONS.filter(q => q.cat === topicId);
+  const p = progress[topicId];
+  if (!p) return 0;
+  const mastered = (p.masteredIds || []).length;
+  return Math.round((mastered / qs.length) * 100);
+}
+
+function overallReadiness(progress) {
+  const scores = TOPICS.map(t => topicReadiness(progress, t.id));
+  return Math.round(scores.reduce((a,b)=>a+b,0) / scores.length);
+}
+
+function weakestTopic(progress) {
+  const unstarted = TOPICS.filter(t => !progress[t.id]);
+  if (unstarted.length > 0) return unstarted.sort((a,b)=>a.order-b.order)[0];
+  return TOPICS.slice().sort((a,b) => topicReadiness(progress,a.id) - topicReadiness(progress,b.id))[0];
+}
+
+// ── COLOURS ──────────────────────────────────────────────────────
+const C = {
+  bg:"#0d0f14", surface:"#13161f", card:"#1a1e2e", border:"#232840",
+  text:"#e2e8f8", muted:"#6b7db3", dim:"#3a4060",
+  got:"#22c55e", gotDim:"#052010", missed:"#ef4444", missedDim:"#200505",
+  accent:"#ee0000", accentGlow:"rgba(238,0,0,0.3)",
+};
+
+function pctColor(pct) {
+  if (pct >= 80) return C.got;
+  if (pct >= 50) return "#eab308";
+  return C.missed;
+}
+
+// ── COMPONENTS ───────────────────────────────────────────────────
+
+function ProgressRing({pct, size=48, color}) {
+  const r = (size-6)/2;
+  const circ = 2*Math.PI*r;
+  const dash = (pct/100)*circ;
+  return (
+    <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth="3"/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color||pctColor(pct)}
+        strokeWidth="3" strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// ── SCREENS ──────────────────────────────────────────────────────
+
+function HomeScreen({progress, onTopic, onQuickSession}) {
+  const overall = overallReadiness(progress);
+  const weak = weakestTopic(progress);
+
+  return (
+    <div style={{minHeight:"100dvh",background:C.bg,color:C.text,display:"flex",flexDirection:"column",
+      fontFamily:"'Inter','Helvetica Neue',sans-serif",maxWidth:430,margin:"0 auto"}}>
+
+      {/* Header */}
+      <div style={{paddingTop:"max(env(safe-area-inset-top),44px)",paddingLeft:20,paddingRight:20,paddingBottom:20,
+        background:`linear-gradient(180deg, #0d0f14 0%, #111420 100%)`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div>
+            <div style={{fontSize:22,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"-0.5px"}}>
+              RHCSA <span style={{color:C.accent}}>EX200</span>
+            </div>
+            <div style={{fontSize:11,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginTop:2}}>RHEL 9 Study Guide</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <ProgressRing pct={overall} size={56} color={pctColor(overall)}/>
+            <div style={{fontSize:10,color:C.muted,marginTop:2}}>readiness</div>
+          </div>
+        </div>
+
+        {/* Quick session banner */}
+        <div onClick={onQuickSession} style={{background:`linear-gradient(135deg, #1a0505, #2a0808)`,
+          border:`1px solid ${C.accent}44`,borderRadius:14,padding:"14px 16px",cursor:"pointer",
+          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:C.accent,marginBottom:2}}>⚡ Today's Session</div>
+            <div style={{fontSize:12,color:C.muted}}>Focus: <span style={{color:C.text}}>{weak.label}</span></div>
+          </div>
+          <div style={{fontSize:24}}>→</div>
+        </div>
+      </div>
+
+      {/* Topic list */}
+      <div style={{flex:1,overflowY:"auto",padding:"8px 16px 32px"}}>
+        <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10,marginTop:4}}>
+          EXAM TOPICS · ordered by weight
+        </div>
+        {TOPICS.sort((a,b)=>b.weight-a.weight).map(topic => {
+          const readiness = topicReadiness(progress, topic.id);
+          const p = progress[topic.id];
+          return (
+            <div key={topic.id} onClick={()=>onTopic(topic.id)}
+              style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,
+                padding:"14px",marginBottom:8,cursor:"pointer",
+                display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:28,width:36,textAlign:"center"}}>{topic.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{fontSize:14,fontWeight:600,color:C.text}}>{topic.label}</div>
+                  <div style={{fontSize:11,color:C.muted,fontFamily:"'JetBrains Mono',monospace"}}>{topic.weight}%</div>
+                </div>
+                <div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${readiness}%`,background:readiness>0?pctColor(readiness):C.border,
+                    borderRadius:2,transition:"width 0.5s ease"}}/>
+                </div>
+                <div style={{fontSize:11,color:C.muted,marginTop:3}}>
+                  {p ? `${readiness}% mastered` : "Not started"}
+                </div>
+              </div>
+              <div style={{fontSize:18,color:C.dim}}>›</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TopicScreen({topicId, progress, onLearn, onQuiz, onBack}) {
+  const topic = TOPICS.find(t=>t.id===topicId);
+  const learn = LEARN[topicId];
+  const qs = QUESTIONS.filter(q=>q.cat===topicId);
+  const readiness = topicReadiness(progress, topicId);
+  const p = progress[topicId];
+
+  return (
+    <div style={{minHeight:"100dvh",background:C.bg,color:C.text,display:"flex",flexDirection:"column",
+      fontFamily:"'Inter','Helvetica Neue',sans-serif",maxWidth:430,margin:"0 auto"}}>
+      <div style={{paddingTop:"max(env(safe-area-inset-top),16px)",paddingLeft:16,paddingRight:16,paddingBottom:16,
+        borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,fontSize:14,
+            cursor:"pointer",fontFamily:"inherit",padding:0}}>← Back</button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontSize:36}}>{topic.icon}</div>
+          <div>
+            <div style={{fontSize:20,fontWeight:700,color:C.text}}>{topic.label}</div>
+            <div style={{fontSize:12,color:C.muted}}>Exam weight: {topic.weight}% · {qs.length} questions</div>
+          </div>
+          <div style={{marginLeft:"auto",textAlign:"center"}}>
+            <ProgressRing pct={readiness} size={48} color={pctColor(readiness)}/>
+            <div style={{fontSize:10,color:C.muted,marginTop:2}}>{readiness}%</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"16px 16px 32px",display:"flex",flexDirection:"column",gap:12}}>
+        {/* Stats */}
+        {p && (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            {[
+              {label:"Attempts",val:p.attempts},
+              {label:"Correct",val:p.correct},
+              {label:"Score",val:`${p.attempts>0?Math.round((p.correct/p.attempts)*100):0}%`}
+            ].map(s=>(
+              <div key={s.label} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,
+                padding:"10px",textAlign:"center"}}>
+                <div style={{fontSize:20,fontWeight:700,color:topic.color,fontFamily:"'JetBrains Mono',monospace"}}>{s.val}</div>
+                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:1}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Learn section */}
+        {learn && (
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"}}>
+            <div style={{fontSize:11,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>STUDY FIRST</div>
+            <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.6,marginBottom:14}}>{learn.summary}</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>
+              {learn.concepts.length} concept{learn.concepts.length>1?"s":""}: {learn.concepts.map(c=>c.name).join(" · ")}
+            </div>
+            <button onClick={onLearn} style={{width:"100%",background:"transparent",border:`1px solid ${topic.color}`,
+              borderRadius:10,padding:"12px",fontSize:14,fontWeight:600,color:topic.color,
+              fontFamily:"inherit",cursor:"pointer"}}>
+              📖 Learn These Concepts
+            </button>
+          </div>
+        )}
+
+        {/* Quiz section */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"}}>
+          <div style={{fontSize:11,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>TEST YOURSELF</div>
+          <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.6,marginBottom:14}}>
+            {qs.length} multiple choice questions. Each wrong answer includes an explanation of why it's wrong.
+          </div>
+          <button onClick={onQuiz} style={{width:"100%",background:C.accent,border:"none",
+            borderRadius:10,padding:"14px",fontSize:15,fontWeight:700,color:"#fff",
+            fontFamily:"inherit",cursor:"pointer"}}>
+            🎯 Start Quiz
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LearnScreen({topicId, onBack, onStartQuiz}) {
+  const [conceptIdx, setConceptIdx] = useState(0);
+  const topic = TOPICS.find(t=>t.id===topicId);
+  const learn = LEARN[topicId];
+  if (!learn) return null;
+  const concept = learn.concepts[conceptIdx];
+  const isLast = conceptIdx === learn.concepts.length - 1;
+
+  return (
+    <div style={{minHeight:"100dvh",background:C.bg,color:C.text,display:"flex",flexDirection:"column",
+      fontFamily:"'Inter','Helvetica Neue',sans-serif",maxWidth:430,margin:"0 auto"}}>
+      <div style={{paddingTop:"max(env(safe-area-inset-top),16px)",paddingLeft:16,paddingRight:16,paddingBottom:12,
+        borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:12}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,fontSize:14,
+          cursor:"pointer",fontFamily:"inherit",padding:0,minWidth:50}}>← Back</button>
+        <div style={{flex:1,textAlign:"center"}}>
+          <div style={{fontSize:12,color:C.muted}}>{topic.label}</div>
+        </div>
+        <div style={{fontSize:12,color:C.muted,minWidth:50,textAlign:"right"}}>
+          {conceptIdx+1}/{learn.concepts.length}
+        </div>
+      </div>
+
+      {/* Progress dots */}
+      <div style={{display:"flex",gap:4,justifyContent:"center",padding:"10px 0 0"}}>
+        {learn.concepts.map((_,i)=>(
+          <div key={i} onClick={()=>setConceptIdx(i)} style={{height:3,flex:1,maxWidth:40,
+            background:i<=conceptIdx?topic.color:C.border,borderRadius:2,cursor:"pointer"}}/>
+        ))}
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"16px 16px 24px",display:"flex",flexDirection:"column",gap:14}}>
+        {/* Concept name */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"}}>
+          <div style={{fontSize:10,color:topic.color,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>CONCEPT</div>
+          <div style={{fontSize:18,fontWeight:700,color:C.text,lineHeight:1.3}}>{concept.name}</div>
+        </div>
+
+        {/* Plain English explanation */}
+        <div style={{background:"#111420",border:`1px solid #1e2440`,borderRadius:12,padding:"16px"}}>
+          <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>PLAIN ENGLISH</div>
+          <div style={{fontSize:14,color:"#94a3b8",lineHeight:1.7}}>{concept.explain}</div>
+        </div>
+
+        {/* Diagram */}
+        <div style={{background:"#080a0e",border:`1px solid #1a2030`,borderRadius:12,padding:"16px"}}>
+          <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>VISUAL BREAKDOWN</div>
+          <pre style={{fontSize:11.5,color:"#7dd3fc",lineHeight:1.6,whiteSpace:"pre-wrap",
+            fontFamily:"'JetBrains Mono','Fira Code',monospace",overflowX:"auto"}}>{concept.diagram}</pre>
+        </div>
+
+        {/* Exam tip */}
+        <div style={{background:"#1a1405",border:"1px solid #3a2a05",borderRadius:12,padding:"14px 16px",
+          display:"flex",gap:10,alignItems:"flex-start"}}>
+          <div style={{fontSize:18,marginTop:1}}>⚡</div>
+          <div>
+            <div style={{fontSize:10,color:"#eab308",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>EXAM TIP</div>
+            <div style={{fontSize:13,color:"#fde68a",lineHeight:1.6}}>{concept.tip}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{padding:"12px 16px",paddingBottom:"max(env(safe-area-inset-bottom),16px)",
+        borderTop:`1px solid ${C.border}`,display:"flex",gap:10}}>
+        {conceptIdx > 0 && (
+          <button onClick={()=>setConceptIdx(conceptIdx-1)}
+            style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,
+              padding:"13px",fontSize:14,color:C.muted,fontFamily:"inherit",cursor:"pointer"}}>
+            ← Previous
+          </button>
+        )}
+        {!isLast ? (
+          <button onClick={()=>setConceptIdx(conceptIdx+1)}
+            style={{flex:2,background:topic.color,border:"none",borderRadius:10,
+              padding:"13px",fontSize:14,fontWeight:600,color:"#000",fontFamily:"inherit",cursor:"pointer"}}>
+            Next Concept →
+          </button>
+        ) : (
+          <button onClick={onStartQuiz}
+            style={{flex:2,background:C.accent,border:"none",borderRadius:10,
+              padding:"13px",fontSize:14,fontWeight:700,color:"#fff",fontFamily:"inherit",cursor:"pointer"}}>
+            Start Quiz →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuizScreen({topicId, questions, progress, onComplete, onBack}) {
+  const [current, setCurrent] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [scores, setScores] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const topic = TOPICS.find(t=>t.id===topicId);
+  const q = questions[current];
+
+  function handleSelect(idx) {
+    if (selected !== null) return;
+    const correct = idx === q.answer;
+    setSelected(idx);
+    setStreak(correct ? streak+1 : 0);
+    setScores([...scores, {correct, qId: q.id}]);
+  }
+
+  function handleNext() {
+    if (current+1 >= questions.length) {
+      onComplete(scores);
+    } else {
+      setCurrent(current+1);
+      setSelected(null);
+    }
+  }
+
+  const progress_pct = (current/questions.length)*100;
+
+  function optStyle(idx) {
+    const base = {background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 14px",
+      fontSize:14,color:C.text,cursor:"pointer",textAlign:"left",fontFamily:"inherit",lineHeight:1.4,width:"100%"};
+    if (selected === null) return base;
+    if (idx === q.answer) return {...base,background:C.gotDim,border:`1px solid ${C.got}55`,color:C.got};
+    if (idx === selected) return {...base,background:C.missedDim,border:`1px solid ${C.missed}55`,color:C.missed};
+    return {...base,opacity:0.3,cursor:"default"};
+  }
+
+  const wrongExplain = selected !== null && selected !== q.answer ? q.wrong[selected] : null;
+
+  return (
+    <div style={{minHeight:"100dvh",background:C.bg,color:C.text,display:"flex",flexDirection:"column",
+      fontFamily:"'Inter','Helvetica Neue',sans-serif",maxWidth:430,margin:"0 auto"}}>
+      <div style={{paddingTop:"max(env(safe-area-inset-top),16px)",paddingLeft:16,paddingRight:16,paddingBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,fontSize:14,
+            cursor:"pointer",fontFamily:"inherit",padding:0}}>← Exit</button>
+          <span style={{fontSize:12,color:C.muted,fontFamily:"'JetBrains Mono',monospace"}}>
+            {current+1} / {questions.length}
+          </span>
+          {streak>=3 && <span style={{fontSize:13,color:"#f59e0b"}}>🔥 {streak}</span>}
+          {streak<3 && <span style={{width:40}}/>}
+        </div>
+        <div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${progress_pct}%`,background:topic.color,borderRadius:2,transition:"width 0.3s"}}/>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"8px 16px 16px",display:"flex",flexDirection:"column",gap:10}}>
+        {/* Question */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px 16px"}}>
+          <div style={{fontSize:10,color:topic.color,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>
+            {topic.label}
+          </div>
+          <div style={{fontSize:16,fontWeight:600,lineHeight:1.55,color:C.text}}>{q.q}</div>
+        </div>
+
+        {/* Options */}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {q.options.map((opt,idx)=>(
+            <button key={idx} style={optStyle(idx)} onClick={()=>handleSelect(idx)}>
+              <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,
+                color:selected===null?C.muted:(idx===q.answer?C.got:idx===selected?C.missed:C.dim),
+                marginRight:10}}>{String.fromCharCode(65+idx)}</span>
+              {opt}
+            </button>
+          ))}
+        </div>
+
+        {/* Explanation */}
+        {selected !== null && (
+          <>
+            {/* Why correct */}
+            <div style={{background:C.gotDim,border:`1px solid ${C.got}33`,borderRadius:12,padding:"12px 14px"}}>
+              <div style={{fontSize:10,color:C.got,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>
+                ✓ WHY THIS IS CORRECT
+              </div>
+              <div style={{fontSize:13,color:"#86efac",lineHeight:1.65}}>{q.explain}</div>
+            </div>
+
+            {/* Why wrong (if they got it wrong) */}
+            {wrongExplain && (
+              <div style={{background:C.missedDim,border:`1px solid ${C.missed}33`,borderRadius:12,padding:"12px 14px"}}>
+                <div style={{fontSize:10,color:C.missed,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>
+                  ✗ WHY YOUR ANSWER WAS WRONG
+                </div>
+                <div style={{fontSize:13,color:"#fca5a5",lineHeight:1.65}}>{wrongExplain}</div>
+              </div>
+            )}
+
+            <button onClick={handleNext}
+              style={{width:"100%",background:C.accent,border:"none",borderRadius:12,padding:"15px",
+                fontSize:15,fontWeight:700,color:"#fff",fontFamily:"inherit",cursor:"pointer"}}>
+              {current+1>=questions.length?"See Results →":"Next Question →"}
+            </button>
+          </>
+        )}
+
+        {/* Dot progress */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,justifyContent:"center",paddingTop:4}}>
+          {questions.map((_,i)=>(
+            <div key={i} style={{width:7,height:7,borderRadius:4,
+              background:i<scores.length?(scores[i].correct?C.got:C.missed):(i===current?topic.color:C.border)}}/>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultsScreen({topicId, scores, questions, onRetry, onHome}) {
+  const topic = TOPICS.find(t=>t.id===topicId);
+  const got = scores.filter(s=>s.correct).length;
+  const pct = Math.round((got/scores.length)*100);
+  const grade = pct>=80?"✅ Mastered":pct>=60?"📈 Getting There":"🔁 More Practice Needed";
+  const missedQs = questions.filter((_,i)=>scores[i]&&!scores[i].correct);
+
+  return (
+    <div style={{minHeight:"100dvh",background:C.bg,color:C.text,display:"flex",flexDirection:"column",
+      fontFamily:"'Inter','Helvetica Neue',sans-serif",maxWidth:430,margin:"0 auto"}}>
+      <div style={{paddingTop:"max(env(safe-area-inset-top),16px)",paddingLeft:16,paddingRight:16,paddingBottom:12,
+        borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <button onClick={onHome} style={{background:"none",border:"none",color:C.accent,fontSize:14,
+          cursor:"pointer",fontFamily:"inherit",padding:0}}>← Home</button>
+        <span style={{fontSize:13,color:C.muted}}>Results</span>
+        <span style={{width:50}}/>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"16px 16px 16px"}}>
+        {/* Score */}
+        <div style={{textAlign:"center",padding:"20px 0 16px"}}>
+          <div style={{fontSize:72,fontWeight:700,lineHeight:1,color:pctColor(pct),
+            fontFamily:"'JetBrains Mono',monospace"}}>{pct}%</div>
+          <div style={{fontSize:18,color:C.text,marginTop:8}}>{grade}</div>
+          <div style={{fontSize:13,color:C.muted,marginTop:6}}>
+            {got} correct · {scores.length-got} to review · {topic.label}
+          </div>
+        </div>
+
+        <div style={{height:6,background:C.border,borderRadius:3,margin:"0 0 20px",overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.got},${topic.color})`,
+            borderRadius:3}}/>
+        </div>
+
+        {missedQs.length > 0 && (
+          <>
+            <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>
+              REVIEW THESE · {missedQs.length} question{missedQs.length>1?"s":""}
+            </div>
+            {missedQs.map(q=>(
+              <div key={q.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,
+                padding:"14px",marginBottom:10}}>
+                <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:8,lineHeight:1.4}}>{q.q}</div>
+                <div style={{fontSize:13,color:C.got,marginBottom:6}}>✓ {q.options[q.answer]}</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,borderTop:`1px solid ${C.border}`,paddingTop:8}}>
+                  {q.explain}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      <div style={{padding:"12px 16px",paddingBottom:"max(env(safe-area-inset-bottom),16px)",
+        borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        <button onClick={onRetry} style={{background:C.accent,border:"none",borderRadius:10,padding:"14px",
+          fontSize:15,fontWeight:700,color:"#fff",fontFamily:"inherit",cursor:"pointer"}}>
+          Retry This Topic
+        </button>
+        <button onClick={onHome} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,
+          padding:"13px",fontSize:14,color:C.muted,fontFamily:"inherit",cursor:"pointer"}}>
+          Back to Topics
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ──────────────────────────────────────────────────────────
+function App() {
+  const [progress, setProgress] = useState(loadProgress);
+  const [screen, setScreen] = useState("home"); // home|topic|learn|quiz|results
+  const [activeTopic, setActiveTopic] = useState(null);
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [quizScores, setQuizScores] = useState([]);
+
+  function updateProgress(topicId, scores) {
+    const p = {...progress};
+    const existing = p[topicId] || {attempts:0,correct:0,masteredIds:[]};
+    const newAttempts = existing.attempts + scores.length;
+    const newCorrect = existing.correct + scores.filter(s=>s.correct).length;
+    const masteredIds = new Set(existing.masteredIds||[]);
+    scores.forEach(s => { if(s.correct) masteredIds.add(s.qId); });
+    const updated = {...existing, attempts:newAttempts, correct:newCorrect,
+      masteredIds:[...masteredIds], lastSeen:Date.now()};
+    p[topicId] = updated;
+    setProgress(p);
+    saveProgress(p);
+  }
+
+  function startQuiz(topicId) {
+    const qs = QUESTIONS.filter(q=>q.cat===topicId).sort(()=>Math.random()-0.5);
+    setQuizQuestions(qs);
+    setActiveTopic(topicId);
+    setScreen("quiz");
+  }
+
+  function handleQuizComplete(scores) {
+    updateProgress(activeTopic, scores);
+    setQuizScores(scores);
+    setScreen("results");
+  }
+
+  function handleQuickSession() {
+    const weak = weakestTopic(progress);
+    setActiveTopic(weak.id);
+    setScreen("topic");
+  }
+
+  if (screen==="home") return (
+    <HomeScreen progress={progress} onTopic={id=>{setActiveTopic(id);setScreen("topic");}} onQuickSession={handleQuickSession}/>
+  );
+  if (screen==="topic") return (
+    <TopicScreen topicId={activeTopic} progress={progress}
+      onLearn={()=>setScreen("learn")} onQuiz={()=>startQuiz(activeTopic)} onBack={()=>setScreen("home")}/>
+  );
+  if (screen==="learn") return (
+    <LearnScreen topicId={activeTopic} onBack={()=>setScreen("topic")} onStartQuiz={()=>startQuiz(activeTopic)}/>
+  );
+  if (screen==="quiz") return (
+    <QuizScreen topicId={activeTopic} questions={quizQuestions} progress={progress}
+      onComplete={handleQuizComplete} onBack={()=>setScreen("topic")}/>
+  );
+  if (screen==="results") return (
+    <ResultsScreen topicId={activeTopic} scores={quizScores} questions={quizQuestions}
+      onRetry={()=>startQuiz(activeTopic)} onHome={()=>setScreen("home")}/>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
